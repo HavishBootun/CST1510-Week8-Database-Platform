@@ -36,47 +36,42 @@ def boot_system():
     print(" [+] Applying database schema (creating tables if missing)...")
     create_all_tables(conn)
 
-    # 3️⃣ Bulk CSV import
+    # 3️⃣ Bulk CSV import with column mapping for cyber_incidents
     print("\n [+] Loading CSV datasets...")
 
     data_map = {
-        "cyber_incidents.csv": "cyber_incidents",
-        "datasets_metadata.csv": "datasets_metadata",
-        "it_tickets.csv": "it_tickets"
+        "cyber_incidents.csv": ("cyber_incidents", {"incident_type": "category"}),  # map CSV column
+        "datasets_metadata.csv": ("datasets_metadata", None),
+        "it_tickets.csv": ("it_tickets", None)
     }
 
     cursor = conn.cursor()
 
-    for csv_name, table_name in data_map.items():
+    for csv_name, (table_name, col_map) in data_map.items():
         file_path = RAW_DATA_DIR / csv_name
-
         if not file_path.exists():
-            print(f"     [!] CSV not found: {csv_name}")
+            print(f"[!] CSV not found: {csv_name}")
             continue
 
         try:
             cursor.execute(f"SELECT COUNT(*) FROM {table_name}")
             existing_rows = cursor.fetchone()[0]
-
             if existing_rows == 0:
-                print(f"     -> Loading {csv_name} into table '{table_name}'...")
-                # Load CSV safely, only required columns
-                inserted = load_csv_to_table(file_path, table_name, if_exists="append")
-                print(f"     -> {inserted} records inserted.")
+                print(f" -> Loading {csv_name} into '{table_name}'...")
+                inserted = load_csv_to_table(file_path, table_name, if_exists="append", column_map=col_map)
+                print(f" -> {inserted} rows inserted.")
             else:
-                print(f"     -> Table '{table_name}' already has {existing_rows} rows. Skipping.")
-
+                print(f" -> Table '{table_name}' already has {existing_rows} rows. Skipping.")
         except Exception as e:
-            print(f"     [!] Error processing {csv_name}: {e}")
+            print(f"[!] Error processing {csv_name}: {e}")
 
     # 4️⃣ Admin account provisioning
     print("\n [+] Checking admin account...")
-
     if not get_user_by_username("admin"):
         success, msg = register_user("admin", "Admin123!", role="admin")
-        print(f"     -> Admin account created: {msg}")
+        print(f" -> Admin account created: {msg}")
     else:
-        print("     -> Admin account already exists.")
+        print(" -> Admin account already exists.")
 
     conn.close()
 

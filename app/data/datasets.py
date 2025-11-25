@@ -1,58 +1,51 @@
 import pandas as pd
 from app.data.db import connect_database
 
-# -----------------------------
-# Single Row Insert
-# -----------------------------
 def load_dataset_row(dataset_name, category, source, last_updated, record_count, file_size_mb):
-    """Inserts one dataset metadata row into the table."""
     conn = connect_database()
     cursor = conn.cursor()
-
     cursor.execute("""
         INSERT INTO datasets_metadata 
         (dataset_name, category, source, last_updated, record_count, file_size_mb)
         VALUES (?, ?, ?, ?, ?, ?)
     """, (dataset_name, category, source, last_updated, record_count, file_size_mb))
-
     conn.commit()
     row_id = cursor.lastrowid
     conn.close()
     return row_id
 
-
-# -----------------------------
-# Return All Rows
-# -----------------------------
 def get_all_datasets():
-    """Returns all dataset metadata records as a DataFrame."""
     conn = connect_database()
     df = pd.read_sql_query("SELECT * FROM datasets_metadata ORDER BY id DESC", conn)
     conn.close()
     return df
 
-
 # -----------------------------
-# Bulk CSV Loader (needed for main.py)
+# Robust CSV loader
 # -----------------------------
-def load_csv_to_table(csv_path, table_name, if_exists="append"):
+def load_csv_to_table(csv_path, table_name, if_exists="append", column_map=None):
     """
-    Loads a CSV file into a SQLite database table using pandas.
-    
-    Args:
-        csv_path (str or Path): Path to the CSV file.
-        table_name (str): Database table name.
-        if_exists (str): 'replace' or 'append'.
-    
-    Returns:
-        int: Number of rows inserted.
+    Loads CSV into DB, optionally mapping columns to match DB table.
+    Ignores extra CSV columns.
     """
     try:
         df = pd.read_csv(csv_path)
         conn = connect_database()
+
+        # Auto map CSV headers to DB if column_map provided
+        if column_map:
+            df = df.rename(columns=column_map)
+
+        # Get DB columns
+        cursor = conn.cursor()
+        cursor.execute(f"PRAGMA table_info({table_name})")
+        table_columns = [col[1] for col in cursor.fetchall()]
+        df = df[[c for c in df.columns if c in table_columns]]  # keep only existing DB columns
+
         df.to_sql(table_name, conn, if_exists=if_exists, index=False)
         conn.close()
         return len(df)
+
     except Exception as e:
         print(f"[!] Error importing {csv_path}: {e}")
         return 0
