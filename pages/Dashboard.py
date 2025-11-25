@@ -70,12 +70,12 @@ with chart_col_left:
     st.subheader("🔍 Incidents by Category")
     if not incidents_df.empty:
         # Grouping data for the chart
-        cat_counts = incidents_df['category'].value_counts().reset_index()
-        cat_counts.columns = ['category', 'count']
+        type_counts = incidents_df['category'].value_counts().reset_index()
+        type_counts.columns = ['category', 'count']
         
         # Horizontal bar chart is often easier to read for categories
         fig_bar = px.bar(
-            cat_counts, 
+            type_counts, 
             x='count', 
             y='category', 
             orientation='h', 
@@ -118,12 +118,13 @@ with st.expander("➕ Log New Security Event"):
         if submit_incident:
             # Calling the Week 8 backend function
             insert_incident(
-                timestamp=str(i_date),
+                date=str(i_date),
+                incident_type=i_type,
                 severity=i_sev,
-                category=i_type,
                 status=i_status,
                 description=i_desc
             )
+
             st.success("New incident logged successfully!")
             st.rerun() # Refresh the page to update the charts and table
 
